@@ -76,31 +76,14 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  // Read state from localStorage or seed
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('ay_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-  });
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('ay_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-  });
-
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    const saved = localStorage.getItem('ay_reviews');
-    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
-  });
-
-  const [coupons, setCoupons] = useState<Coupon[]>(() => {
-    const saved = localStorage.getItem('ay_coupons');
-    return saved ? JSON.parse(saved) : INITIAL_COUPONS;
-  });
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('ay_orders');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
+  const [adminActivities, setAdminActivities] = useState<AdminActivity[]>([]);
+  const [payOnDeliveryEnabled, setPayOnDeliveryEnabled] = useState<boolean>(true);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('ay_cart');
@@ -110,11 +93,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     const saved = localStorage.getItem('ay_currentUser');
     return saved ? JSON.parse(saved) : null;
-  });
-
-  const [payOnDeliveryEnabled, setPayOnDeliveryEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem('ay_pod_enabled');
-    return saved ? JSON.parse(saved) === 'true' : true;
   });
 
   const [wishlist, setWishlist] = useState<string[]>(() => {
@@ -130,39 +108,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(() => {
-    const saved = localStorage.getItem('ay_registered_users');
-    if (saved) {
+  // --- FETCH INITIAL STATE FROM DATABASE APIs ---
+  useEffect(() => {
+    const fetchData = async () => {
       try {
-        const parsed: RegisteredUser[] = JSON.parse(saved);
-        let updated = false;
-        const mapped = parsed.map((u) => {
-          if (u.email === 'ibnrosheed9@gmail.com') {
-            if (!u.isSuperAdmin || !u.isAdmin) {
-              updated = true;
-              return { ...u, isAdmin: true, isSuperAdmin: true };
-            }
-          }
-          return u;
-        });
-        if (updated) return mapped;
-        return parsed;
-      } catch (e) {
-        console.error('Error parsing registered users', e);
-      }
-    }
-    return [
-      { name: 'Ayoola Admin', email: 'admin@ayoola.com', password: 'adminpassword', isAdmin: true, isSuperAdmin: false, wishlist: [] },
-      { name: 'Ibrahim Rosheed', email: 'ibnrosheed9@gmail.com', password: 'password123', isAdmin: true, isSuperAdmin: true, wishlist: [] },
-      { name: 'John Doe', email: 'customer1@gmail.com', password: 'password123', isAdmin: false, isSuperAdmin: false, wishlist: [] },
-      { name: 'Sarah Connor', email: 'customer2@gmail.com', password: 'password123', isAdmin: false, isSuperAdmin: false, wishlist: [] }
-    ];
-  });
+        const [pRes, cRes, rRes, coupRes, oRes, uRes, actRes, podRes] = await Promise.all([
+          fetch('/api/products').then((res) => res.json()),
+          fetch('/api/categories').then((res) => res.json()),
+          fetch('/api/reviews').then((res) => res.json()),
+          fetch('/api/coupons').then((res) => res.json()),
+          fetch('/api/orders').then((res) => res.json()),
+          fetch('/api/users').then((res) => res.json()),
+          fetch('/api/admin-activities').then((res) => res.json()),
+          fetch('/api/settings/pod').then((res) => res.json()),
+        ]);
 
-  const [adminActivities, setAdminActivities] = useState<AdminActivity[]>(() => {
-    const saved = localStorage.getItem('ay_admin_activities');
-    return saved ? JSON.parse(saved) : [];
-  });
+        if (Array.isArray(pRes)) setProducts(pRes);
+        if (Array.isArray(cRes)) setCategories(cRes);
+        if (Array.isArray(rRes)) setReviews(rRes);
+        if (Array.isArray(coupRes)) setCoupons(coupRes);
+        if (Array.isArray(oRes)) setOrders(oRes);
+        if (Array.isArray(uRes)) setRegisteredUsers(uRes);
+        if (Array.isArray(actRes)) setAdminActivities(actRes);
+        if (podRes && typeof podRes.enabled === 'boolean') setPayOnDeliveryEnabled(podRes.enabled);
+      } catch (err) {
+        console.error('Failed to sync state with Cloud SQL PostgreSQL database:', err);
+      }
+    };
+    fetchData();
+  }, []);
 
   const safeSetItem = (key: string, val: string) => {
     try {
@@ -172,27 +146,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Sync to localStorage
-  useEffect(() => {
-    safeSetItem('ay_products', JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    safeSetItem('ay_categories', JSON.stringify(categories));
-  }, [categories]);
-
-  useEffect(() => {
-    safeSetItem('ay_reviews', JSON.stringify(reviews));
-  }, [reviews]);
-
-  useEffect(() => {
-    safeSetItem('ay_coupons', JSON.stringify(coupons));
-  }, [coupons]);
-
-  useEffect(() => {
-    safeSetItem('ay_orders', JSON.stringify(orders));
-  }, [orders]);
-
+  // Sync client-only selections/sessions to localStorage
   useEffect(() => {
     safeSetItem('ay_cart', JSON.stringify(cart));
   }, [cart]);
@@ -208,10 +162,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser]);
 
   useEffect(() => {
-    safeSetItem('ay_pod_enabled', String(payOnDeliveryEnabled));
-  }, [payOnDeliveryEnabled]);
-
-  useEffect(() => {
     if (currentUser) {
       const updatedUser = { ...currentUser, wishlist };
       safeSetItem('ay_currentUser', JSON.stringify(updatedUser));
@@ -224,15 +174,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     safeSetItem('ay_newsletter', JSON.stringify(newsletterEmails));
   }, [newsletterEmails]);
 
-  useEffect(() => {
-    safeSetItem('ay_registered_users', JSON.stringify(registeredUsers));
-  }, [registeredUsers]);
+  // --- SYNC MUTATIONS WITH CLOUD SQL ---
 
-  useEffect(() => {
-    safeSetItem('ay_admin_activities', JSON.stringify(adminActivities));
-  }, [adminActivities]);
-
-  const logAdminActivity = (action: string, details: string) => {
+  const logAdminActivity = async (action: string, details: string) => {
     if (!currentUser || !currentUser.isAdmin) return;
     const newActivity: AdminActivity = {
       id: 'act_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
@@ -240,17 +184,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       adminName: currentUser.name,
       action,
       details,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
+
     setAdminActivities((prev) => [newActivity, ...prev]);
+
+    try {
+      await fetch('/api/admin-activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newActivity),
+      });
+    } catch (err) {
+      console.error('Failed to log admin activity in database:', err);
+    }
   };
 
-  const clearAdminActivities = () => {
+  const clearAdminActivities = async () => {
     setAdminActivities([]);
-    localStorage.removeItem('ay_admin_activities');
+    try {
+      await fetch('/api/admin-activities', { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to clear admin activities in database:', err);
+    }
   };
 
-  // Dynamic helper to create a URL slug from text
   const slugify = (text: string) => {
     return text
       .toLowerCase()
@@ -259,59 +217,117 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Products CRUD
-  const addProduct = (p: Omit<Product, 'id' | 'slug'>) => {
+  const addProduct = async (p: Omit<Product, 'id' | 'slug'>) => {
     const id = 'prod_' + Date.now();
     const slug = slugify(p.name);
     const newProduct: Product = { ...p, id, slug };
+
     setProducts((prev) => [newProduct, ...prev]);
-    logAdminActivity('Add Product', `Added product "${p.name}" with a stock of ${p.stock} units, priced at ₦${p.price.toLocaleString()}`);
+
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProduct),
+      });
+      logAdminActivity('Add Product', `Added product "${p.name}" with a stock of ${p.stock} units, priced at ₦${p.price.toLocaleString()}`);
+    } catch (err) {
+      console.error('Failed to create product:', err);
+    }
   };
 
-  const editProduct = (id: string, p: Partial<Product>) => {
+  const editProduct = async (id: string, p: Partial<Product>) => {
     const existing = products.find((item) => item.id === id);
     if (existing) {
-      logAdminActivity('Edit Product', `Updated product "${existing.name}" (changed: ${Object.keys(p).join(', ')})`);
+      const updatedProduct = { ...existing, ...p, slug: p.name ? slugify(p.name) : existing.slug };
+
+      setProducts((prev) =>
+        prev.map((item) => (item.id === id ? updatedProduct : item))
+      );
+
+      try {
+        await fetch(`/api/products/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedProduct),
+        });
+        logAdminActivity('Edit Product', `Updated product "${existing.name}" (changed: ${Object.keys(p).join(', ')})`);
+      } catch (err) {
+        console.error('Failed to update product:', err);
+      }
     }
-    setProducts((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...p, slug: p.name ? slugify(p.name) : item.slug } : item))
-    );
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     const existing = products.find((item) => item.id === id);
     if (existing) {
-      logAdminActivity('Delete Product', `Deleted product "${existing.name}" (ID: ${id})`);
+      setProducts((prev) => prev.filter((item) => item.id !== id));
+      removeFromCart(id);
+      setWishlist((prev) => prev.filter((item) => item !== id));
+
+      try {
+        await fetch(`/api/products/${id}`, { method: 'DELETE' });
+        logAdminActivity('Delete Product', `Deleted product "${existing.name}" (ID: ${id})`);
+      } catch (err) {
+        console.error('Failed to delete product:', err);
+      }
     }
-    setProducts((prev) => prev.filter((item) => item.id !== id));
-    removeFromCart(id);
-    setWishlist((prev) => prev.filter((item) => item !== id));
   };
 
   // Categories CRUD
-  const addCategory = (c: Omit<Category, 'id' | 'slug'>) => {
+  const addCategory = async (c: Omit<Category, 'id' | 'slug'>) => {
     const id = 'cat_' + Date.now();
     const slug = slugify(c.name);
     const newCat: Category = { ...c, id, slug };
+
     setCategories((prev) => [...prev, newCat]);
-    logAdminActivity('Add Category', `Created category "${c.name}"`);
+
+    try {
+      await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCat),
+      });
+      logAdminActivity('Add Category', `Created category "${c.name}"`);
+    } catch (err) {
+      console.error('Failed to create category:', err);
+    }
   };
 
-  const editCategory = (id: string, c: Partial<Category>) => {
+  const editCategory = async (id: string, c: Partial<Category>) => {
     const existing = categories.find((item) => item.id === id);
     if (existing) {
-      logAdminActivity('Edit Category', `Updated category "${existing.name}"`);
+      const updatedCategory = { ...existing, ...c, slug: c.name ? slugify(c.name) : existing.slug };
+
+      setCategories((prev) =>
+        prev.map((item) => (item.id === id ? updatedCategory : item))
+      );
+
+      try {
+        await fetch(`/api/categories/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedCategory),
+        });
+        logAdminActivity('Edit Category', `Updated category "${existing.name}"`);
+      } catch (err) {
+        console.error('Failed to update category:', err);
+      }
     }
-    setCategories((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...c, slug: c.name ? slugify(c.name) : item.slug } : item))
-    );
   };
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     const existing = categories.find((item) => item.id === id);
     if (existing) {
-      logAdminActivity('Delete Category', `Deleted category "${existing.name}" (ID: ${id})`);
+      setCategories((prev) => prev.filter((item) => item.id !== id));
+
+      try {
+        await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+        logAdminActivity('Delete Category', `Deleted category "${existing.name}" (ID: ${id})`);
+      } catch (err) {
+        console.error('Failed to delete category:', err);
+      }
     }
-    setCategories((prev) => prev.filter((item) => item.id !== id));
   };
 
   // Cart Management
@@ -327,7 +343,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const newQty = updated[existingIdx].quantity + quantity;
         updated[existingIdx] = {
           ...updated[existingIdx],
-          quantity: newQty > product.stock ? product.stock : newQty
+          quantity: newQty > product.stock ? product.stock : newQty,
         };
         return updated;
       }
@@ -352,13 +368,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => setCart([]);
 
   // Wishlist Actions
-  const toggleWishlist = (productId: string) => {
-    setWishlist((prev) => {
-      if (prev.includes(productId)) {
-        return prev.filter((id) => id !== productId);
+  const toggleWishlist = async (productId: string) => {
+    const updatedWishlist = wishlist.includes(productId)
+      ? wishlist.filter((id) => id !== productId)
+      : [...wishlist, productId];
+
+    setWishlist(updatedWishlist);
+
+    if (currentUser) {
+      try {
+        await fetch(`/api/users/${currentUser.email}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wishlist: updatedWishlist }),
+        });
+      } catch (err) {
+        console.error('Failed to update wishlist in DB:', err);
       }
-      return [...prev, productId];
-    });
+    }
   };
 
   const moveWishlistToCart = (productId: string) => {
@@ -369,7 +396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Auth (Mock Auth using Local Storage for Accounts with Password Support)
+  // Authentication Actions
   const login = (email: string, password?: string) => {
     const formattedEmail = email.trim().toLowerCase();
     
@@ -379,12 +406,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const name = matched ? matched.name : (isAdmin ? 'Ayoola Admin' : email.split('@')[0]);
     
     const user: UserSession = {
-      uid: 'user_' + Date.now(),
+      uid: matched?.password || 'user_' + Date.now(),
       email: formattedEmail,
       name: name.charAt(0).toUpperCase() + name.slice(1),
       isAdmin,
       isSuperAdmin,
-      wishlist: matched?.wishlist || []
+      wishlist: matched?.wishlist || [],
     };
 
     if (matched) {
@@ -394,11 +421,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } else {
-      // Auto register for convenience if it doesn't exist
-      setRegisteredUsers((prev) => [
-        ...prev,
-        { name: user.name, email: user.email, password: password || '', isAdmin, isSuperAdmin, wishlist: [] }
-      ]);
+      // Auto register for convenience
+      const newUser = {
+        id: 'user_' + Date.now(),
+        uid: 'uid_' + Date.now(),
+        name: user.name,
+        email: user.email,
+        password: password || '',
+        isAdmin,
+        isSuperAdmin,
+        wishlist: [],
+      };
+      setRegisteredUsers((prev) => [...prev, newUser]);
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      }).catch((err) => console.error('Failed to save newly auto-registered user:', err));
     }
 
     setCurrentUser(user);
@@ -415,24 +454,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const isSuperAdmin = formattedEmail === 'ibnrosheed9@gmail.com';
     const isAdmin = isSuperAdmin || formattedEmail === 'admin@ayoola.com';
 
+    const id = 'user_' + Date.now();
+    const uid = 'uid_' + Date.now();
     const newUser = {
+      id,
+      uid,
       name: name.trim(),
       email: formattedEmail,
       password: password || '',
       isAdmin,
       isSuperAdmin,
-      wishlist: []
+      wishlist: [],
     };
-    setRegisteredUsers((prev) => [...prev, newUser]);
 
-    // Log in
+    setRegisteredUsers((prev) => [...prev, { ...newUser, wishlist: [] }]);
+
+    fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    }).catch((err) => console.error('Failed to create user in DB:', err));
+
     const user: UserSession = {
-      uid: 'user_' + Date.now(),
+      uid,
       email: formattedEmail,
       name: newUser.name,
       isAdmin,
       isSuperAdmin,
-      wishlist: []
+      wishlist: [],
     };
     setCurrentUser(user);
     return { success: true };
@@ -440,52 +489,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     if (currentUser) {
-      // Save user's wishlist before logging out
       setRegisteredUsers((prev) =>
-        prev.map((u) =>
-          u.email === currentUser.email ? { ...u, wishlist } : u
-        )
+        prev.map((u) => (u.email === currentUser.email ? { ...u, wishlist } : u))
       );
     }
     setCurrentUser(null);
   };
 
-  const updateProfile = (name: string) => {
+  const updateProfile = async (name: string) => {
     if (currentUser) {
-      setCurrentUser((prev) => prev ? { ...prev, name } : null);
+      setCurrentUser((prev) => (prev ? { ...prev, name } : null));
       setRegisteredUsers((prev) =>
-        prev.map((u) =>
-          u.email === currentUser.email ? { ...u, name } : u
-        )
+        prev.map((u) => (u.email === currentUser.email ? { ...u, name } : u))
       );
+
+      try {
+        await fetch(`/api/users/${currentUser.email}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+      } catch (err) {
+        console.error('Failed to update profile name:', err);
+      }
     }
   };
 
   const updatePassword = (email: string, newPass: string) => {
     const formattedEmail = email.trim().toLowerCase();
     const exists = registeredUsers.some((u) => u.email === formattedEmail);
+
     if (exists) {
       setRegisteredUsers((prev) =>
-        prev.map((u) =>
-          u.email === formattedEmail ? { ...u, password: newPass } : u
-        )
+        prev.map((u) => (u.email === formattedEmail ? { ...u, password: newPass } : u))
       );
+      fetch(`/api/users/${formattedEmail}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPass }),
+      }).catch((err) => console.error('Failed to update password:', err));
     } else {
-      setRegisteredUsers((prev) => [
-        ...prev,
-        {
-          name: email.split('@')[0],
-          email: formattedEmail,
-          password: newPass,
-          isAdmin: formattedEmail === 'ibnrosheed9@gmail.com' || formattedEmail === 'admin@ayoola.com',
-          wishlist: []
-        }
-      ]);
+      const newUser = {
+        id: 'user_' + Date.now(),
+        uid: 'uid_' + Date.now(),
+        name: email.split('@')[0],
+        email: formattedEmail,
+        password: newPass,
+        isAdmin: formattedEmail === 'ibnrosheed9@gmail.com' || formattedEmail === 'admin@ayoola.com',
+        isSuperAdmin: formattedEmail === 'ibnrosheed9@gmail.com',
+        wishlist: [],
+      };
+      setRegisteredUsers((prev) => [...prev, newUser]);
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      }).catch((err) => console.error('Failed to create user on password reset:', err));
     }
     return { success: true };
   };
 
-  // Admin and Customer Management Handlers
+  // Admin Operations
   const adminAddAdmin = (name: string, email: string, password?: string) => {
     if (!currentUser || !currentUser.isSuperAdmin) {
       return { success: false, message: 'Unauthorized: Only the Super Administrator can create or promote administrative accounts.' };
@@ -500,23 +564,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return {
               ...u,
               isAdmin: true,
-              ...(password ? { password } : {})
+              ...(password ? { password } : {}),
             };
           }
           return u;
         })
       );
+      fetch(`/api/users/${formattedEmail}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAdmin: true, ...(password ? { password } : {}) }),
+      }).catch((err) => console.error('Failed to update Admin role:', err));
+
       return { success: true, message: `User "${formattedEmail}" was successfully promoted to Admin.` };
     }
 
-    const newUser: RegisteredUser = {
+    const id = 'user_' + Date.now();
+    const uid = 'uid_' + Date.now();
+    const newUser = {
+      id,
+      uid,
       name: name.trim(),
       email: formattedEmail,
       password: password || 'admin123',
       isAdmin: true,
-      wishlist: []
+      isSuperAdmin: false,
+      wishlist: [],
     };
+
     setRegisteredUsers((prev) => [...prev, newUser]);
+    fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    }).catch((err) => console.error('Failed to create new Admin user:', err));
+
     return { success: true, message: `New Admin account "${formattedEmail}" created successfully.` };
   };
 
@@ -527,10 +609,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const formattedEmail = email.trim().toLowerCase();
     setRegisteredUsers((prev) =>
-      prev.map((u) =>
-        u.email === formattedEmail ? { ...u, password: newPass } : u
-      )
+      prev.map((u) => (u.email === formattedEmail ? { ...u, password: newPass } : u))
     );
+    fetch(`/api/users/${formattedEmail}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPass }),
+    }).catch((err) => console.error('Failed to change password:', err));
+
     logAdminActivity('Change User Password', `Changed password for user account "${formattedEmail}"`);
     return { success: true };
   };
@@ -542,6 +628,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const formattedEmail = email.trim().toLowerCase();
     setRegisteredUsers((prev) => prev.filter((u) => u.email !== formattedEmail));
+    fetch(`/api/users/${formattedEmail}`, { method: 'DELETE' })
+      .catch((err) => console.error('Failed to delete user:', err));
+
     logAdminActivity('Delete User Account', `Deleted user account "${formattedEmail}"`);
     return { success: true };
   };
@@ -553,21 +642,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...orderData,
       id,
       date: new Date().toISOString().split('T')[0],
-      status: orderData.paymentMethod === 'paystack' ? 'Paid' : 'Pending'
+      status: orderData.paymentMethod === 'paystack' ? 'Paid' : 'Pending',
     };
 
     setOrders((prev) => [newOrder, ...prev]);
 
-    // Reduce stock counts for products
-    setProducts((prevProds) =>
-      prevProds.map((prod) => {
-        const item = orderData.items.find((i) => i.productId === prod.id);
-        if (item) {
-          return { ...prod, stock: Math.max(0, prod.stock - item.quantity) };
-        }
-        return prod;
-      })
-    );
+    // Update product stock on server and client
+    const updatedProducts = products.map((prod) => {
+      const item = orderData.items.find((i) => i.productId === prod.id);
+      if (item) {
+        const newStock = Math.max(0, prod.stock - item.quantity);
+        fetch(`/api/products/${prod.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: newStock }),
+        }).catch((err) => console.error('Failed to sync stock on order:', err));
+        return { ...prod, stock: newStock };
+      }
+      return prod;
+    });
+    setProducts(updatedProducts);
+
+    // Save order on server
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrder),
+    }).catch((err) => console.error('Failed to save order in DB:', err));
 
     return newOrder;
   };
@@ -576,11 +677,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setOrders((prev) =>
       prev.map((order) => (order.id === id ? { ...order, status } : order))
     );
+    fetch(`/api/orders/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }).catch((err) => console.error('Failed to update order status:', err));
+
     logAdminActivity('Update Order Status', `Updated order #${id} status to "${status}"`);
   };
 
   const deleteOrder = (id: string) => {
     setOrders((prev) => prev.filter((order) => order.id !== id));
+    fetch(`/api/orders/${id}`, { method: 'DELETE' })
+      .catch((err) => console.error('Failed to delete order:', err));
+
     logAdminActivity('Delete Order', `Deleted order #${id} from record`);
   };
 
@@ -594,27 +704,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       userEmail,
       rating,
       comment,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
     };
 
     setReviews((prev) => [newReview, ...prev]);
 
-    // Recalculate product rating & review count
+    // Recalculate product rating & reviewsCount
+    const prodReviews = [newReview, ...reviews.filter((r) => r.productId === productId)];
+    const totalRating = prodReviews.reduce((sum, r) => sum + r.rating, 0);
+    const newRating = parseFloat((totalRating / prodReviews.length).toFixed(1));
+
     setProducts((prevProds) =>
       prevProds.map((prod) => {
         if (prod.id === productId) {
-          const prodReviews = [newReview, ...reviews.filter((r) => r.productId === productId)];
-          const totalRating = prodReviews.reduce((sum, r) => sum + r.rating, 0);
-          const newRating = parseFloat((totalRating / prodReviews.length).toFixed(1));
-          return {
-            ...prod,
-            rating: newRating,
-            reviewsCount: prodReviews.length
-          };
+          const updatedProd = { ...prod, rating: newRating, reviewsCount: prodReviews.length };
+          fetch(`/api/products/${productId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: newRating, reviewsCount: prodReviews.length }),
+          }).catch((err) => console.error('Failed to sync product rating on review add:', err));
+          return updatedProd;
         }
         return prod;
       })
     );
+
+    fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReview),
+    }).catch((err) => console.error('Failed to save review:', err));
   };
 
   const deleteReview = (id: string) => {
@@ -623,37 +742,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (reviewToDelete) {
       logAdminActivity('Delete Review', `Deleted review by ${reviewToDelete.userName} on product ID: ${reviewToDelete.productId}`);
+      
+      const prodReviews = reviews.filter((r) => r.productId === reviewToDelete.productId && r.id !== id);
+      const totalRating = prodReviews.reduce((sum, r) => sum + r.rating, 0);
+      const newRating = prodReviews.length > 0 ? parseFloat((totalRating / prodReviews.length).toFixed(1)) : 5.0;
+
       setProducts((prevProds) =>
         prevProds.map((prod) => {
           if (prod.id === reviewToDelete.productId) {
-            const prodReviews = reviews.filter((r) => r.productId === prod.id && r.id !== id);
-            const totalRating = prodReviews.reduce((sum, r) => sum + r.rating, 0);
-            const newRating = prodReviews.length > 0 ? parseFloat((totalRating / prodReviews.length).toFixed(1)) : 5.0;
-            return {
-              ...prod,
-              rating: newRating,
-              reviewsCount: prodReviews.length
-            };
+            const updatedProd = { ...prod, rating: newRating, reviewsCount: prodReviews.length };
+            fetch(`/api/products/${prod.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rating: newRating, reviewsCount: prodReviews.length }),
+            }).catch((err) => console.error('Failed to sync product rating on review deletion:', err));
+            return updatedProd;
           }
           return prod;
         })
       );
+
+      fetch(`/api/reviews/${id}`, { method: 'DELETE' })
+        .catch((err) => console.error('Failed to delete review:', err));
     }
   };
 
   // Coupon Actions
   const addCoupon = (coupon: Coupon) => {
     setCoupons((prev) => [...prev, coupon]);
+    fetch('/api/coupons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(coupon),
+    }).catch((err) => console.error('Failed to create coupon:', err));
+
     logAdminActivity('Add Coupon', `Created discount coupon code "${coupon.code}" (${coupon.discountValue}${coupon.discountType === 'percentage' ? '%' : ' ₦'} discount)`);
   };
 
   const toggleCoupon = (id: string) => {
     const existing = coupons.find((c) => c.id === id);
-    setCoupons((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c))
-    );
     if (existing) {
-      logAdminActivity('Toggle Coupon', `Toggled activation of coupon code "${existing.code}" to ${!existing.active ? 'Active' : 'Inactive'}`);
+      const updatedActive = !existing.active;
+      setCoupons((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, active: updatedActive } : c))
+      );
+      fetch(`/api/coupons/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: updatedActive }),
+      }).catch((err) => console.error('Failed to toggle coupon:', err));
+
+      logAdminActivity('Toggle Coupon', `Toggled activation of coupon code "${existing.code}" to ${updatedActive ? 'Active' : 'Inactive'}`);
     }
   };
 
@@ -661,8 +800,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const existing = coupons.find((c) => c.id === id);
     setCoupons((prev) => prev.filter((c) => c.id !== id));
     if (existing) {
+      fetch(`/api/coupons/${id}`, { method: 'DELETE' })
+        .catch((err) => console.error('Failed to delete coupon:', err));
+
       logAdminActivity('Delete Coupon', `Deleted discount coupon "${existing.code}"`);
     }
+  };
+
+  // Pay on Delivery Toggle
+  const togglePODStatus = (enabled: boolean) => {
+    setPayOnDeliveryEnabled(enabled);
+    fetch('/api/settings/pod', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    }).catch((err) => console.error('Failed to save POD setting:', err));
   };
 
   // Newsletter subscription
@@ -716,7 +868,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addCoupon,
         toggleCoupon,
         deleteCoupon,
-        setPayOnDeliveryEnabled,
+        setPayOnDeliveryEnabled: togglePODStatus,
         subscribeNewsletter,
         registeredUsers,
         adminAddAdmin,
@@ -724,7 +876,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         adminDeleteUser,
         adminActivities,
         logAdminActivity,
-        clearAdminActivities
+        clearAdminActivities,
       }}
     >
       {children}

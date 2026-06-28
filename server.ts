@@ -6,6 +6,42 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+import {
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getReviews,
+  createReview,
+  deleteReview,
+  getCoupons,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
+  getOrders,
+  createOrder,
+  updateOrderStatus,
+  deleteOrder,
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  getAdminActivities,
+  createAdminActivity,
+  clearAdminActivities
+} from './src/db/queries.ts';
+
+import {
+  INITIAL_PRODUCTS,
+  INITIAL_CATEGORIES,
+  INITIAL_COUPONS,
+  INITIAL_REVIEWS
+} from './src/data/products.ts';
+
 const app = express();
 const PORT = 3000;
 
@@ -14,7 +50,325 @@ app.use(express.json());
 // In-memory store for active reset codes
 const resetCodes: Record<string, { code: string; expires: number }> = {};
 
-// API routes FIRST
+// In-memory global setting for pay on delivery
+let payOnDeliveryEnabled = true;
+
+// --- DATABASE SEED FUNCTION ---
+async function seedDatabase() {
+  try {
+    console.log('Checking database seed status...');
+    const dbCats = await getCategories();
+    if (dbCats.length === 0) {
+      console.log('Seeding categories...');
+      for (const cat of INITIAL_CATEGORIES) {
+        await createCategory(cat);
+      }
+      console.log('Categories seeded successfully.');
+    }
+
+    const dbProds = await getProducts();
+    if (dbProds.length === 0) {
+      console.log('Seeding products...');
+      for (const prod of INITIAL_PRODUCTS) {
+        await createProduct(prod);
+      }
+      console.log('Products seeded successfully.');
+    }
+
+    const dbCoupons = await getCoupons();
+    if (dbCoupons.length === 0) {
+      console.log('Seeding coupons...');
+      for (const coupon of INITIAL_COUPONS) {
+        await createCoupon(coupon);
+      }
+      console.log('Coupons seeded successfully.');
+    }
+
+    const dbReviews = await getReviews();
+    if (dbReviews.length === 0) {
+      console.log('Seeding reviews...');
+      for (const rev of INITIAL_REVIEWS) {
+        await createReview(rev);
+      }
+      console.log('Reviews seeded successfully.');
+    }
+
+    const dbUsers = await getUsers();
+    if (dbUsers.length === 0) {
+      console.log('Seeding registered users...');
+      const initialUsers = [
+        { id: 'usr_admin', uid: 'admin-uid', email: 'admin@ayoola.com', name: 'Ayoola Admin', isAdmin: true, isSuperAdmin: false },
+        { id: 'usr_super', uid: 'super-uid', email: 'ibnrosheed9@gmail.com', name: 'Ibrahim Rosheed', isAdmin: true, isSuperAdmin: true },
+        { id: 'usr_cust1', uid: 'customer1-uid', email: 'customer1@gmail.com', name: 'John Doe', isAdmin: false, isSuperAdmin: false },
+        { id: 'usr_cust2', uid: 'customer2-uid', email: 'customer2@gmail.com', name: 'Sarah Connor', isAdmin: false, isSuperAdmin: false }
+      ];
+      for (const u of initialUsers) {
+        await createUser(u);
+      }
+      console.log('Registered users seeded successfully.');
+    }
+  } catch (error) {
+    console.error('Error seeding database:', error);
+  }
+}
+
+// --- DATABASE API ROUTES ---
+
+// 1. Categories
+app.get('/api/categories', async (req, res) => {
+  try {
+    const cats = await getCategories();
+    res.json(cats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/categories', async (req, res) => {
+  try {
+    const cat = await createCategory(req.body);
+    res.status(201).json(cat);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/categories/:id', async (req, res) => {
+  try {
+    const cat = await updateCategory(req.params.id, req.body);
+    res.json(cat);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    const cat = await deleteCategory(req.params.id);
+    res.json(cat);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Products
+app.get('/api/products', async (req, res) => {
+  try {
+    const prods = await getProducts();
+    res.json(prods);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/products', async (req, res) => {
+  try {
+    const prod = await createProduct(req.body);
+    res.status(201).json(prod);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const prod = await updateProduct(req.params.id, req.body);
+    res.json(prod);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const prod = await deleteProduct(req.params.id);
+    res.json(prod);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Reviews
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const revs = await getReviews();
+    res.json(revs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const rev = await createReview(req.body);
+    res.status(201).json(rev);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/reviews/:id', async (req, res) => {
+  try {
+    const rev = await deleteReview(req.params.id);
+    res.json(rev);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. Coupons
+app.get('/api/coupons', async (req, res) => {
+  try {
+    const coups = await getCoupons();
+    res.json(coups);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/coupons', async (req, res) => {
+  try {
+    const coup = await createCoupon(req.body);
+    res.status(201).json(coup);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/coupons/:id', async (req, res) => {
+  try {
+    const coup = await updateCoupon(req.params.id, req.body);
+    res.json(coup);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/coupons/:id', async (req, res) => {
+  try {
+    const coup = await deleteCoupon(req.params.id);
+    res.json(coup);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Orders
+app.get('/api/orders', async (req, res) => {
+  try {
+    const ords = await getOrders();
+    res.json(ords);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/orders', async (req, res) => {
+  try {
+    const ord = await createOrder(req.body);
+    res.status(201).json(ord);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/orders/:id', async (req, res) => {
+  try {
+    const ord = await updateOrderStatus(req.params.id, req.body.status);
+    res.json(ord);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/orders/:id', async (req, res) => {
+  try {
+    const ord = await deleteOrder(req.params.id);
+    res.json(ord);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Users
+app.get('/api/users', async (req, res) => {
+  try {
+    const registered = await getUsers();
+    res.json(registered);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  try {
+    const user = await createUser(req.body);
+    res.status(201).json(user);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/users/:email', async (req, res) => {
+  try {
+    const user = await updateUser(req.params.email, req.body);
+    res.json(user);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/users/:email', async (req, res) => {
+  try {
+    const user = await deleteUser(req.params.email);
+    res.json(user);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. Admin Activities
+app.get('/api/admin-activities', async (req, res) => {
+  try {
+    const acts = await getAdminActivities();
+    res.json(acts);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin-activities', async (req, res) => {
+  try {
+    const act = await createAdminActivity(req.body);
+    res.status(201).json(act);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/admin-activities', async (req, res) => {
+  try {
+    await clearAdminActivities();
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8. Settings for POD
+app.get('/api/settings/pod', (req, res) => {
+  res.json({ enabled: payOnDeliveryEnabled });
+});
+
+app.post('/api/settings/pod', (req, res) => {
+  if (req.body && typeof req.body.enabled === 'boolean') {
+    payOnDeliveryEnabled = req.body.enabled;
+  }
+  res.json({ enabled: payOnDeliveryEnabled });
+});
+
+
+// --- EMAIL RESET ENDPOINTS (PRESERVED) ---
 app.post('/api/send-reset-email', async (req, res) => {
   try {
     const { email } = req.body;
@@ -93,7 +447,6 @@ app.post('/api/send-reset-email', async (req, res) => {
       await transporter.sendMail(mailOptions);
       return res.json({ success: true, message: 'Reset code sent to your email.' });
     } catch (mailErr: any) {
-      // Avoid printing the full error object or stack trace to stdout/stderr to prevent log scanning false alarms
       console.warn('SMTP delivery failed. Falling back to sandbox mode for code retrieval.');
       return res.json({
         success: true,
@@ -140,6 +493,8 @@ app.post('/api/verify-reset-code', (req, res) => {
 
 // Vite middleware for development or static file serving for production
 async function startServer() {
+  await seedDatabase();
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
