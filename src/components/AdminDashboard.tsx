@@ -26,7 +26,7 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
     addCoupon, toggleCoupon, deleteCoupon,
     setPayOnDeliveryEnabled, currentUser, login,
     registeredUsers, adminAddAdmin, adminChangeUserPassword, adminDeleteUser,
-    adminActivities
+    adminActivities, clearAdminActivities
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('stats');
@@ -404,16 +404,25 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
         <div className="flex flex-wrap gap-2.5">
           {/* POD Toggle Controls */}
           <button
-            onClick={() => setPayOnDeliveryEnabled(!payOnDeliveryEnabled)}
-            className={`px-4 py-2.5 rounded-xl border text-xs font-semibold tracking-wide flex items-center gap-2 cursor-pointer transition-colors ${
-              payOnDeliveryEnabled
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                : 'bg-red-50 border-red-200 text-red-700'
+            onClick={() => {
+              if (!currentUser?.isSuperAdmin) {
+                alert('Only the Super Admin is permitted to enable or disable the Pay on Delivery feature.');
+                return;
+              }
+              setPayOnDeliveryEnabled(!payOnDeliveryEnabled);
+            }}
+            className={`px-4 py-2.5 rounded-xl border text-xs font-semibold tracking-wide flex items-center gap-2 transition-colors ${
+              !currentUser?.isSuperAdmin 
+                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                : payOnDeliveryEnabled
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer'
+                  : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100 cursor-pointer'
             }`}
+            title={!currentUser?.isSuperAdmin ? "Only Super Admin can change this setting" : "Toggle Pay on Delivery"}
             id="admin-toggle-pod"
           >
             {payOnDeliveryEnabled ? <ToggleRight className="h-4.5 w-4.5" /> : <ToggleLeft className="h-4.5 w-4.5" />}
-            <span>Pay on Delivery: {payOnDeliveryEnabled ? 'ENABLED' : 'DISABLED'}</span>
+            <span>Pay on Delivery: {payOnDeliveryEnabled ? 'ENABLED' : 'DISABLED'} {!currentUser?.isSuperAdmin && '(Locked)'}</span>
           </button>
 
           <button
@@ -494,16 +503,18 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
             <span>Product Reviews ({reviews.length})</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-4 py-3 text-left rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center gap-3 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'users' ? 'bg-gold-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-            }`}
-            id="tab-btn-users"
-          >
-            <Users className="h-4 w-4" />
-            <span>Customers & Admins ({registeredUsers?.length || 0})</span>
-          </button>
+          {currentUser?.isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-4 py-3 text-left rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center gap-3 transition-colors cursor-pointer whitespace-nowrap ${
+                activeTab === 'users' ? 'bg-gold-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+              }`}
+              id="tab-btn-users"
+            >
+              <Users className="h-4 w-4" />
+              <span>Customers & Admins ({registeredUsers?.length || 0})</span>
+            </button>
+          )}
 
           {currentUser?.isSuperAdmin && (
             <button
@@ -863,9 +874,21 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => deleteProduct(p.id)}
-                                  className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer"
-                                  title="Delete product"
+                                  onClick={() => {
+                                    if (!currentUser?.isSuperAdmin) {
+                                      alert('Only the Super Admin is permitted to delete products.');
+                                      return;
+                                    }
+                                    if (confirm(`Are you sure you want to delete the product "${p.name}"?`)) {
+                                      deleteProduct(p.id);
+                                    }
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    !currentUser?.isSuperAdmin
+                                      ? 'text-gray-300 cursor-not-allowed hover:bg-transparent'
+                                      : 'hover:bg-red-50 text-red-500 cursor-pointer'
+                                  }`}
+                                  title={!currentUser?.isSuperAdmin ? "Only Super Admin can delete products" : "Delete product"}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -992,8 +1015,21 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
                     <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-4">{c.description}</p>
                     <div className="flex justify-end gap-2 border-t border-gray-50 pt-2">
                       <button
-                        onClick={() => deleteCategory(c.id)}
-                        className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer text-xs flex items-center gap-1.5 font-medium"
+                        onClick={() => {
+                          if (!currentUser?.isSuperAdmin) {
+                            alert('Only the Super Admin is permitted to delete categories.');
+                            return;
+                          }
+                          if (confirm(`Are you sure you want to delete the category "${c.name}"?`)) {
+                            deleteCategory(c.id);
+                          }
+                        }}
+                        className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 font-medium transition-colors ${
+                          !currentUser?.isSuperAdmin
+                            ? 'text-gray-300 cursor-not-allowed hover:bg-transparent'
+                            : 'hover:bg-red-50 text-red-500 cursor-pointer'
+                        }`}
+                        title={!currentUser?.isSuperAdmin ? "Only Super Admin can delete categories" : "Delete category"}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         <span>Delete</span>
@@ -1054,9 +1090,21 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
                           </td>
                           <td className="p-4 text-right">
                             <button
-                              onClick={() => deleteOrder(o.id)}
-                              className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer"
-                              title="Delete Order Record"
+                              onClick={() => {
+                                if (!currentUser?.isSuperAdmin) {
+                                  alert('Only the Super Admin is permitted to delete order records.');
+                                  return;
+                                }
+                                if (confirm(`Are you sure you want to delete order #${o.id}?`)) {
+                                  deleteOrder(o.id);
+                                }
+                              }}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                !currentUser?.isSuperAdmin
+                                  ? 'text-gray-300 cursor-not-allowed hover:bg-transparent'
+                                  : 'hover:bg-red-50 text-red-500 cursor-pointer'
+                              }`}
+                              title={!currentUser?.isSuperAdmin ? "Only Super Admin can delete orders" : "Delete Order Record"}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1182,9 +1230,21 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
                         {c.active ? <CheckCircle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
                       </button>
                       <button
-                        onClick={() => deleteCoupon(c.id)}
-                        className="p-1 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer"
-                        title="Delete coupon"
+                        onClick={() => {
+                          if (!currentUser?.isSuperAdmin) {
+                            alert('Only the Super Admin is permitted to delete coupons.');
+                            return;
+                          }
+                          if (confirm(`Are you sure you want to delete coupon code "${c.code}"?`)) {
+                            deleteCoupon(c.id);
+                          }
+                        }}
+                        className={`p-1 rounded-lg transition-colors ${
+                          !currentUser?.isSuperAdmin
+                            ? 'text-gray-300 cursor-not-allowed hover:bg-transparent'
+                            : 'hover:bg-red-50 text-red-500 cursor-pointer'
+                        }`}
+                        title={!currentUser?.isSuperAdmin ? "Only Super Admin can delete coupons" : "Delete coupon"}
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
@@ -1226,9 +1286,21 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
                         </div>
                         <div className="self-center">
                           <button
-                            onClick={() => deleteReview(rev.id)}
-                            className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer"
-                            title="Delete comment"
+                            onClick={() => {
+                              if (!currentUser?.isSuperAdmin) {
+                                alert('Only the Super Admin is permitted to delete reviews.');
+                                return;
+                              }
+                              if (confirm('Are you sure you want to delete this review?')) {
+                                deleteReview(rev.id);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              !currentUser?.isSuperAdmin
+                                ? 'text-gray-300 cursor-not-allowed hover:bg-transparent'
+                                : 'hover:bg-red-50 text-red-500 cursor-pointer'
+                            }`}
+                            title={!currentUser?.isSuperAdmin ? "Only Super Admin can delete reviews" : "Delete comment"}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1245,7 +1317,7 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
           )}
 
           {/* USERS & ADMINS MANAGEMENT */}
-          {activeTab === 'users' && (
+          {activeTab === 'users' && currentUser?.isSuperAdmin && (
             <div className="space-y-6" id="panel-users">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -1534,8 +1606,7 @@ export default function AdminDashboard({ onBackToHome, onNavigateToProduct }: Ad
                   <button
                     onClick={() => {
                       if (confirm('Are you sure you want to clear the system log history?')) {
-                        localStorage.removeItem('ay_admin_activities');
-                        window.location.reload();
+                        clearAdminActivities();
                       }
                     }}
                     className="px-3.5 py-2 border border-red-200 hover:border-red-500 text-red-600 hover:bg-red-50 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer self-start md:self-auto"

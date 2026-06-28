@@ -364,33 +364,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }: Aut
               {isSending ? 'Please wait...' : tab === 'login' ? 'Sign In' : tab === 'register' ? 'Create Account' : tab === 'forgot' ? 'Send Reset Code' : 'Update Password'}
             </button>
 
-            {tab === 'login' && (
-              <div className="pt-3 border-t border-gray-100 mt-4 space-y-2">
-                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider text-center">Quick Demo Admin Accounts</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('ibnrosheed9@gmail.com');
-                      setPassword('password123');
-                    }}
-                    className="px-2 py-1.5 bg-rose-50 border border-rose-100 hover:bg-rose-100 text-[10px] font-bold text-rose-700 rounded-lg text-center cursor-pointer transition-colors"
-                  >
-                    Super Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@ayoola.com');
-                      setPassword('adminpassword');
-                    }}
-                    className="px-2 py-1.5 bg-gold-50 border border-gold-100 hover:bg-gold-100 text-[10px] font-bold text-gold-700 rounded-lg text-center cursor-pointer transition-colors"
-                  >
-                    Ayoola Admin
-                  </button>
-                </div>
-              </div>
-            )}
+
 
             {(tab === 'forgot' || tab === 'verify-reset') && (
               <button

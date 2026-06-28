@@ -86,7 +86,7 @@ export default function ProductCard({ product, onViewDetails }: ProductCardProps
 
         {/* Hover quick actions bar */}
         <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/60 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex gap-2 justify-center z-10">
-          {!currentUser?.isAdmin ? (
+          {(!currentUser?.isAdmin || currentUser?.isSuperAdmin) ? (
             <>
               <button
                 onClick={handleAddToCart}

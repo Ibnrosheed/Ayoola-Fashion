@@ -70,6 +70,7 @@ interface AppContextType {
   // Admin Activity Log Monitoring
   adminActivities: AdminActivity[];
   logAdminActivity: (action: string, details: string) => void;
+  clearAdminActivities: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -244,6 +245,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAdminActivities((prev) => [newActivity, ...prev]);
   };
 
+  const clearAdminActivities = () => {
+    setAdminActivities([]);
+    localStorage.removeItem('ay_admin_activities');
+  };
+
   // Dynamic helper to create a URL slug from text
   const slugify = (text: string) => {
     return text
@@ -310,8 +316,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Cart Management
   const addToCart = (product: Product, quantity: number) => {
-    if (currentUser?.isAdmin) {
-      alert('Administrative accounts are not permitted to buy or purchase products.');
+    if (currentUser?.isAdmin && !currentUser?.isSuperAdmin) {
+      alert('Administrative accounts are not permitted to buy or purchase products. Please log in with a customer or super admin account to purchase.');
       return;
     }
     setCart((prev) => {
@@ -515,6 +521,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const adminChangeUserPassword = (email: string, newPass: string) => {
+    if (!currentUser?.isSuperAdmin) {
+      alert('Only the Super Admin is permitted to change passwords.');
+      return { success: false };
+    }
     const formattedEmail = email.trim().toLowerCase();
     setRegisteredUsers((prev) =>
       prev.map((u) =>
@@ -526,6 +536,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const adminDeleteUser = (email: string) => {
+    if (!currentUser?.isSuperAdmin) {
+      alert('Only the Super Admin is permitted to delete user accounts.');
+      return { success: false };
+    }
     const formattedEmail = email.trim().toLowerCase();
     setRegisteredUsers((prev) => prev.filter((u) => u.email !== formattedEmail));
     logAdminActivity('Delete User Account', `Deleted user account "${formattedEmail}"`);
@@ -709,7 +723,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         adminChangeUserPassword,
         adminDeleteUser,
         adminActivities,
-        logAdminActivity
+        logAdminActivity,
+        clearAdminActivities
       }}
     >
       {children}

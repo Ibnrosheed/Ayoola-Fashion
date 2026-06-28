@@ -569,7 +569,7 @@ function StorefrontContent() {
                         <p className="text-xs text-gray-500 leading-relaxed font-light">{prod.description}</p>
 
                         {/* Action Buttons */}
-                        {currentUser?.isAdmin ? (
+                        {currentUser?.isAdmin && !currentUser?.isSuperAdmin ? (
                           <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs text-center rounded-xl font-medium">
                             ⚠️ Administrative accounts are not permitted to buy or purchase products. Please log in with a customer account to purchase.
                           </div>
